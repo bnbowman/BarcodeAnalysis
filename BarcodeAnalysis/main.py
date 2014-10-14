@@ -53,6 +53,7 @@ class BarcodeAnalyzer(object):
         self._barcodeSequences = None
         self._barcodeNames = None
         self._barcodePairs = None
+        self._barcodeLength = None
         self._configDict = None
         self._windowSize = 25
         self._adapterPad = 0
@@ -110,6 +111,13 @@ class BarcodeAnalyzer(object):
             # If both pass, add the sequences and pair-wise combinations
             sequences[(name, 'FORWARD')] = barcode.sequence
             sequences[(name, 'REVERSE')] = rc_barcode.sequence
+        # Verify that all of the barcodes are the same length
+        bc_lengths = list(set([len(s) for s in sequences.itervalues()]))
+        if len(bc_lengths) > 1:
+            msg = "Multiple barcode lengths detected - {0}".format(bc_lengths)
+            logging.error( msg )
+            raise ValueError( msg )
+        self._barcodeLength = bc_lengths[0]
         self._barcodeSequences = sequences
         self._barcodeNames = set(names)
         self._barcodePairs = [(names[i], names[i+1]) for i in range(0,len(names)-1,2)]
@@ -160,33 +168,40 @@ class BarcodeAnalyzer(object):
         return self.inputReader._parts[partNum]
 
     def _makeRead( self, holeNum, start, end ):
+        if (end-start) < self._barcodeLength:
+            logging.debug("ZMW #{0} - Skipping barcode window ({1}, {2}) - too small".format(holeNum, start, end))
+            return None
         bax = self._getBaxForHole( holeNum )
         return ConsensusCoreRead(bax, holeNum, start, end, self.chemistry)
 
     def scoreBarcode(self, barcode, window):
         return self.readScorer.Score(barcode, window.read)
 
-    def scoreWindow(self, window):
-        scores = {}
-        for key, barcode in self.barcodeSequences.iteritems():
-            scores[key] = self.scoreBarcode(barcode, window)
-        return scores
+    def scoreWindow(self, holeNumber, start, end):
+        window = self._makeRead( holeNumber, start, end )
+        # If there isn't enough data to make a read from, return None
+        if window is None:
+            return None
+        # Otherwise score the window against all possible barcodes
+        else:
+            scores = {}
+            for key, barcode in self.barcodeSequences.iteritems():
+                scores[key] = self.scoreBarcode(barcode, window)
+            return scores
 
     def scoreLeftWindow( self, zmw, adapter ):
         hqStart, hqEnd = zmw.hqRegion
         adpStart, adpEnd = adapter
         windowStart = max(hqStart, adpStart - self.windowSize)
         windowEnd = min(hqEnd, adpStart + self.adapterPad)
-        window = self._makeRead( zmw.holeNumber, windowStart, windowEnd )
-        return self.scoreWindow( window )
+        return self.scoreWindow( zmw.holeNumber, windowStart, windowEnd )
 
     def scoreRightWindow( self, zmw, adapter ):
         hqStart, hqEnd = zmw.hqRegion
         adpStart, adpEnd = adapter
         windowStart = max(hqStart, adpEnd - self.adapterPad)
         windowEnd = min(hqEnd, adpEnd + self.windowSize)
-        window = self._makeRead( zmw.holeNumber, windowStart, windowEnd )
-        return self.scoreWindow( window )
+        return self.scoreWindow( zmw.holeNumber, windowStart, windowEnd )
 
     def combineScores( self, left, right ):
         if left is None:
