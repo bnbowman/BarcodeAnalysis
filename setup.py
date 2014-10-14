@@ -3,7 +3,7 @@ import sys
 
 from setuptools import setup, find_packages
 
-__author__ = 'Brett Bowma'
+__author__ = 'Brett Bowman'
 
 # Check that a valid, modern version of Python is being used
 if ("install" in sys.argv) and sys.version_info < (2, 7, 0):
@@ -11,7 +11,7 @@ if ("install" in sys.argv) and sys.version_info < (2, 7, 0):
     sys.exit(-1)
 
 # Read the version information
-vFile = 'pbbarcode2/_version.py'
+vFile = 'BarcodeAnalysis/_version.py'
 if os.path.exists(vFile):
     lines = open(vFile, 'r').read().splitlines()
     for line in lines:
@@ -25,13 +25,12 @@ else:
 
 # Run Setup
 setup(
-    name = 'pbbarcode2',
+    name = 'BarcodeAnalysis',
     version=_ReadVersion,
     author='Brett Bowman',
     author_email='bbowman@pacificbiosciences.com',
     license='LICENSE.txt',
-    packages = find_packages('pbhml'),
-    package_dir = {'':'pbhml'},
+    packages = find_packages(),
     zip_safe = False,
     install_requires=[
         'numpy >= 1.6.0',
