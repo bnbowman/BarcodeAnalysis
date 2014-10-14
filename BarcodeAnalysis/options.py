@@ -73,6 +73,10 @@ def parseOptions():
         default=os.path.join(os.getcwd(), "output.csv"),
         metavar="CSV",
         help="The filename of the CSV to output barcode scoring data to.")
+    parameter.add_argument(
+        "-a", "--appendOutput",
+        action='store_true',
+        help="The")
 
     debugging = parser.add_argument_group("Verbosity and debugging/profiling")
     debugging.add_argument("--help", "-h",

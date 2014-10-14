@@ -33,7 +33,10 @@ def barcodeCsvLine( holeNum, scores, adapters ):
     secondIdx, secondScore = sortedScores[1] if len(sortedScores) > 1 else ("N/A", 0)
     bestProb = math.exp( bestScore )
     secondProb = math.exp( secondScore ) if secondScore else 1e-100
-    ratio = bestProb/secondProb
+    try:
+        ratio = bestProb/secondProb
+    except ZeroDivisionError:
+        ratio = 1e-100
     return "{0},{1},{2},{3},{4},{5},{6},{7}\n".format(holeNum, adapters,
                                                       bestIdx, bestScore, bestProb,
                                                       secondIdx, secondScore, secondProb,
@@ -253,6 +256,14 @@ class BarcodeAnalyzer(object):
                 adapterCount = zmwAdapters[holeNum]
                 handle.write( barcodeCsvLine(holeNum, barcodeScores, adapterCount) )
 
+    def openOutputFile(self):
+        if not options.appendOutput:
+            handle = open(options.outputFilename, 'w')
+            handle.write("HoleNumber,NumAdapters,Idx1,LogScore1,Psudo1,Idx2,LogScore2,Pseudo2,Ratio\n")
+        else:
+            handle = open(options.outputFilename, 'a')
+        return handle
+
     def main(self):
         parseOptions()
         self._setupLogging()
@@ -266,19 +277,15 @@ class BarcodeAnalyzer(object):
         self._loadData()
         self._loadBarcodes()
 
-        zmwScores = {}
-        zmwAdapters = {}
-        for holeNum in self._sequencingZmws:
-            zmw = self.inputReader[holeNum]
-            if len(zmw.adapterRegions) == 0:
-                logging.debug("Skipping ZMW #{0} -- no adapters".format(holeNum))
-                continue
-            logging.debug("Labelling ZMW #{0}".format(holeNum))
-            scores = self.scoreZmw( zmw )
-            zmwScores[zmw.holeNumber] = scores
-            zmwAdapters[zmw.holeNumber] = len(zmw.adapterRegions)
-
-        self.writeZmwScores( zmwScores, zmwAdapters )
+        with self.openOutputFile() as handle:
+            for holeNum in self._sequencingZmws:
+                zmw = self.inputReader[holeNum]
+                if len(zmw.adapterRegions) == 0:
+                    logging.debug("Skipping ZMW #{0} -- no adapters".format(holeNum))
+                    continue
+                logging.debug("Labelling ZMW #{0}".format(holeNum))
+                scores = self.scoreZmw( zmw )
+                handle.write( barcodeCsvLine(holeNum, scores, len(zmw.adapterRegions)) )
 
         return 0
 
