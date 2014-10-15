@@ -55,6 +55,7 @@ class BarcodeAnalyzer(object):
         self._barcodePairs = None
         self._barcodeLength = None
         self._configDict = None
+        self._chemistry = None
         self._windowSize = 25
         self._adapterPad = 0
 
@@ -78,6 +79,7 @@ class BarcodeAnalyzer(object):
         else:
             self._sequencingZmws = reader.sequencingZmws[:options.nZmws]
         self.inputReader = reader
+        self._chemistry = reader.sequencingChemistry
 
     def _loadBarcodes(self):
         """
@@ -130,7 +132,7 @@ class BarcodeAnalyzer(object):
         return self._adapterPad
     @property
     def chemistry(self):
-        return self.inputReader.sequencingChemistry
+        return self._chemistry
     @property
     def model(self):
         return "AllQVsMergingByChannelModel"
@@ -254,6 +256,8 @@ class BarcodeAnalyzer(object):
             leftScores  = self.scoreLeftWindow( zmw, adapter )
             rightScores = self.scoreRightWindow( zmw, adapter )
             combinedScores = self.combineScores( leftScores, rightScores )
+            if combinedScores is None:
+                continue
             # Take the best score for each barcode from the two combined options
             bestScores = self.bestScoreByBarcode( combinedScores )
             totalScores = self.addScores( totalScores, bestScores)
