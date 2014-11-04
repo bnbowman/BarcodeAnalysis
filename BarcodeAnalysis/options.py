@@ -46,6 +46,22 @@ def parseOptions():
         type=canonicalizedFilePath,
         metavar="BARCODE_FASTA",
         help="The filename of the barcode FASTA")
+    basics.add_argument(
+        "-w", "--whiteList",
+        metavar="ZMW_LIST",
+        help="Whitelist of ZMWs to be analyzed")
+    basics.add_argument(
+        "--adapterSizes",
+        action="store_true",
+        help="Measure the size of available barcode windows rather than scoring them")
+    basics.add_argument(
+        "--scoreFirst",
+        action="store_true",
+        help="Score the beginning of the read instead, as per PBbarcode")
+    basics.add_argument(
+        "--tSNE",
+        action="store_true",
+        help="Generate a report for using with t-SNE")
 
     parameter = parser.add_argument_group("Parameter settings")
     parameter.add_argument(

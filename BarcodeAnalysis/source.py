@@ -5,13 +5,18 @@ from pbcore.io import BasH5Reader, BasH5Collection
 __author__ = 'Brett Bowman'
 
 def loadFromFile(filename):
-    """
-    Reads barcode sequences from a FASTA file into a dictionary so
-    that individual records could be accessed quickly
-    """
     try:
-        reader = BasH5Reader(filename)
+        reader = BasH5Collection(filename)
     except:
-        raise IOError("Invalid Bas.H5 file")
-
+        raise IOError("Invalid Bas.H5 file or collection")
     return reader
+
+def readWhiteList(filename):
+    try:
+        zmws = set([l.strip() for l in open(filename) if len(l.strip()) > 1])
+    except:
+        raise IOError("Invalid Whitelist file")
+    return zmws
+
+def filterZmws(collection, whiteList):
+    return [z for z in collection if z.zmwName in whiteList]

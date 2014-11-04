@@ -42,6 +42,9 @@ class ConsensusCoreRead(object):
         return cc.QvSequenceFeatures(*features)
 
     @property
+    def movieName(self):
+        return self._bax.movieName
+    @property
     def absStart(self):
         return self._offset + self._start
     @property
@@ -49,7 +52,7 @@ class ConsensusCoreRead(object):
         return self._offset + self._end
     @property
     def name(self):
-        return "{0}_{1}_{2}".format(self._holeNum, self._start, self._end)
+        return "{0}/{1}/{2}_{3}".format(self.movieName, self._holeNum, self._start, self._end)
     @property
     def sequence(self):
         return self._sequence
@@ -59,6 +62,22 @@ class ConsensusCoreRead(object):
     @property
     def read(self):
         return self._read
+
+    def _to_csv_segment(self, pos):
+        segment = ',' + self._sequence[pos]
+        for feature in QUIVER_FEATURES:
+            segment += ',' + str(self._qvs[feature][pos])
+        return segment
+
+    def __len__(self):
+        return len(self.sequence)
+
+    @property
+    def to_csv(self):
+        line = self.name
+        for i in range(len(self._sequence)):
+            line += self._to_csv_segment(i)
+        return line
 
     def _makeSequenceFeatures( self, holeNum, start, end ):
         absStart = zmwOffsetStart + start

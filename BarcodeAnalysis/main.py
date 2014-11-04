@@ -27,7 +27,8 @@ def _getAbsPath(filename):
 def _getDefaultParametersFile():
     return _getAbsPath('QuiverParameters.ini')
 
-def barcodeCsvLine( holeNum, scores, adapters ):
+def barcodeCsvLine( zmw, scores ):
+    adapters = len(zmw.adapterRegions)
     sortedScores = sorted(scores.iteritems(), key=lambda x: x[1], reverse=True)
     bestIdx, bestScore = sortedScores[0]
     secondIdx, secondScore = sortedScores[1] if len(sortedScores) > 1 else ("N/A", 0)
@@ -37,7 +38,7 @@ def barcodeCsvLine( holeNum, scores, adapters ):
         ratio = bestProb/secondProb
     except ZeroDivisionError:
         ratio = 1e-100
-    return "{0},{1},{2},{3},{4},{5},{6},{7}\n".format(holeNum, adapters,
+    return "{0},{1},{2},{3},{4},{5},{6},{7}\n".format(zmw.zmwName, adapters,
                                                       bestIdx, bestScore, bestProb,
                                                       secondIdx, secondScore, secondProb,
                                                       ratio)
@@ -54,10 +55,12 @@ class BarcodeAnalyzer(object):
         self._barcodeNames = None
         self._barcodePairs = None
         self._barcodeLength = None
+        self._whitelist = None
         self._configDict = None
         self._chemistry = None
         self._windowSize = 25
         self._adapterPad = 0
+        self._startTimeCutoff = 10.0
 
     def _setupLogging(self):
         if options.quiet:
@@ -71,15 +74,34 @@ class BarcodeAnalyzer(object):
         logFormat = '[%(levelname)s] %(message)s'
         logging.basicConfig(level=logLevel, format=logFormat)
 
+    def _loadChemistry(self):
+        all_chemistries = [self.inputReader[k].sequencingChemistry for k in self.inputReader.readers.keys()]
+        used_chemistries = sorted(set(all_chemistries))
+        print all_chemistries
+        print used_chemistries
+        assert len(used_chemistries) == 1
+        self._chemistry = used_chemistries[0]
+
     def _loadData(self):
         logging.info("Loading input data")
         reader = source.loadFromFile(options.inputFilename)
-        if options.nZmws < 0:
-            self._sequencingZmws = reader.sequencingZmws
+        # Filter out only the whitelisted ZMWs if a whitelist was given
+        print "opened"
+        if options.whiteList:
+            whitelist = source.readWhiteList(options.whiteList)
+            print "whitelist"
+            sequencingZmws = source.filterZmws(reader, whitelist)
+            print "subset"
         else:
-            self._sequencingZmws = reader.sequencingZmws[:options.nZmws]
+            sequencingZmws = [z.zmwName for z in reader]
+
+        # Clip the list of ZMWs if nZMWs was set
+        if options.nZmws < 0:
+            self._sequencingZmws = sequencingZmws
+        else:
+            self._sequencingZmws = sequencingZmws[:options.nZmws]
+
         self.inputReader = reader
-        self._chemistry = reader.sequencingChemistry
 
     def _loadBarcodes(self):
         """
@@ -169,18 +191,18 @@ class BarcodeAnalyzer(object):
         partNum = self.inputReader._holeLookup(holeNum) - 1
         return self.inputReader._parts[partNum]
 
-    def _makeRead( self, holeNum, start, end ):
+    def _makeRead( self, zmw, start, end ):
         if (end-start) < self._barcodeLength:
-            logging.debug("ZMW #{0} - Skipping barcode window ({1}, {2}) - too small".format(holeNum, start, end))
+            logging.debug("ZMW #{0} - Skipping barcode window ({1}, {2}) - too small".format(zmw.holeNumber, start, end))
             return None
-        bax = self._getBaxForHole( holeNum )
-        return ConsensusCoreRead(bax, holeNum, start, end, self.chemistry)
+        #bax = self._getBaxForHole( holeNum )
+        return ConsensusCoreRead(zmw.baxH5, zmw.holeNumber, start, end, self.chemistry)
 
     def scoreBarcode(self, barcode, window):
         return self.readScorer.Score(barcode, window.read)
 
-    def scoreWindow(self, holeNumber, start, end):
-        window = self._makeRead( holeNumber, start, end )
+    def scoreWindow(self, zmw, start, end):
+        window = self._makeRead( zmw, start, end )
         # If there isn't enough data to make a read from, return None
         if window is None:
             return None
@@ -196,14 +218,50 @@ class BarcodeAnalyzer(object):
         adpStart, adpEnd = adapter
         windowStart = max(hqStart, adpStart - self.windowSize)
         windowEnd = min(hqEnd, adpStart + self.adapterPad)
-        return self.scoreWindow( zmw.holeNumber, windowStart, windowEnd )
+        #windowStart = max(hqStart, adpStart + 20)
+        #windowEnd = min(hqEnd, adpStart + 45)
+        return self.scoreWindow( zmw, windowStart, windowEnd )
 
     def scoreRightWindow( self, zmw, adapter ):
         hqStart, hqEnd = zmw.hqRegion
         adpStart, adpEnd = adapter
         windowStart = max(hqStart, adpEnd - self.adapterPad)
         windowEnd = min(hqEnd, adpEnd + self.windowSize)
-        return self.scoreWindow( zmw.holeNumber, windowStart, windowEnd )
+        #windowStart = max(hqStart, adpEnd - 20)
+        #windowEnd = min(hqEnd, adpEnd - 45)
+        return self.scoreWindow( zmw, windowStart, windowEnd )
+
+    def _getWindowReads( self, zmw ):
+        hqStart, hqEnd = zmw.hqRegion
+        for adapter in zmw.adapterRegions:
+            adpStart, adpEnd = adapter
+            leftStart = adpStart - self.windowSize
+            leftEnd = adpStart + self.adapterPad
+            if leftStart >= hqStart:
+                yield self._makeRead( zmw, leftStart, leftEnd )
+            else:
+                yield None
+            rightStart = adpEnd - self.adapterPad
+            rightEnd = adpEnd + self.windowSize
+            if rightEnd <= hqEnd:
+                yield self._makeRead( zmw, rightStart, rightEnd )
+            else:
+                yield None
+
+    def scoreFirstWindow(self, zmw):
+        s = zmw.zmwMetric('HQRegionStartTime')
+        e = zmw.zmwMetric('HQRegionEndTime')
+        # s<e => has HQ.
+        if s < e and s <= self._startTimeCutoff:
+            end = self.windowSize + self.adapterPad
+            end = end if zmw.hqRegion[1] > end else zmw.hqRegion[1]
+            scores = self.scoreWindow( zmw.holeNumber, 0, end )
+            bestScores = self.bestScoreByBarcode( scores )
+            pairScores = self.scorePairs( bestScores )
+        else:
+            logging.debug("Skipping ZMW #{0} -- start-time too late".format(zmw.holeNumber))
+            pairScores = None
+        return pairScores
 
     def combineScores( self, left, right ):
         if left is None:
@@ -267,18 +325,10 @@ class BarcodeAnalyzer(object):
         # Return the combined scores
         return finalScores
 
-    def writeZmwScores(self, zmwScores, zmwAdapters):
-        with open(options.outputFilename, 'w') as handle:
-            handle.write("HoleNumber,NumAdapters,Idx1,LogScore1,Psudo1,Idx2,LogScore2,Pseudo2,Ratio\n")
-            for holeNum in sorted(zmwScores.keys()):
-                barcodeScores = zmwScores[holeNum]
-                adapterCount = zmwAdapters[holeNum]
-                handle.write( barcodeCsvLine(holeNum, barcodeScores, adapterCount) )
-
     def openOutputFile(self):
         if not options.appendOutput:
             handle = open(options.outputFilename, 'w')
-            handle.write("HoleNumber,NumAdapters,Idx1,LogScore1,Psudo1,Idx2,LogScore2,Pseudo2,Ratio\n")
+            handle.write("Zmw,NumAdapters,Idx1,LogScore1,Psudo1,Idx2,LogScore2,Pseudo2,Ratio\n")
         else:
             handle = open(options.outputFilename, 'a')
         return handle
@@ -294,17 +344,38 @@ class BarcodeAnalyzer(object):
 
         logging.info("Starting.")
         self._loadData()
+        self._loadChemistry()
         self._loadBarcodes()
 
-        with self.openOutputFile() as handle:
-            for holeNum in self._sequencingZmws:
-                zmw = self.inputReader[holeNum]
-                if len(zmw.adapterRegions) == 0:
-                    logging.debug("Skipping ZMW #{0} -- no adapters".format(holeNum))
-                    continue
-                logging.debug("Labelling ZMW #{0}".format(holeNum))
-                scores = self.scoreZmw( zmw )
-                handle.write( barcodeCsvLine(holeNum, scores, len(zmw.adapterRegions)) )
+        if options.tSNE:
+            with self.openOutputFile() as handle:
+                for holeNum in self._sequencingZmws:
+                    zmw = self.inputReader[holeNum]
+                    if len(zmw.adapterRegions) >= 3:
+                        for window in self._getWindowReads(zmw):
+                            handle.write( window.to_csv + '\n' )
+        elif options.adapterSizes:
+            with self.openOutputFile() as handle:
+                for zmw in self._sequencingZmws:
+                    lengths = [(len(w) if w else 0) for w in self._getWindowReads(zmw)]
+                    print '%s,%s,%s' % (zmw.zmwName, ','.join([str(l) for l in lengths]), min(lengths))
+        else:
+            with self.openOutputFile() as handle:
+                for zmw in self._sequencingZmws:
+                    # If scoreFirst is on, ONLY score the first
+                    if options.scoreFirst and len(zmw.adapterRegions) == 0:
+                        logging.debug("Labelling 5'-end of ZMW #{0} -- no adapters".format(zmw.holeNumber))
+                        scores = self.scoreFirstWindow( zmw )
+                    # Otherwise score normally
+                    else:
+                        if len(zmw.adapterRegions) == 0:
+                            logging.debug("Skipping ZMW #{0} -- no adapters".format(zmw.holeNumber))
+                            continue
+                        logging.debug("Labelling ZMW #{0}".format(zmw.holeNumber))
+                        scores = self.scoreZmw( zmw )
+                    print scores
+                    if scores is not None:
+                        handle.write( barcodeCsvLine( zmw, scores ) )
 
         return 0
 
