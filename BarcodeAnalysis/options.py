@@ -62,6 +62,27 @@ def parseOptions():
         "--tSNE",
         action="store_true",
         help="Generate a report for using with t-SNE")
+    basics.add_argument(
+        "--pbbarcode",
+        action="store_true",
+        help="Generate a report using PBbarcode")
+    basics.add_argument(
+        "--pbbarcode2",
+        action="store_true",
+        help="Print out detailed alignments of incorrect calls using PBbarcode")
+    basics.add_argument(
+        "--pbbarcode3",
+        action="store_true",
+        help="Print out detailed alignments of incorrect calls using PBbarcode")
+    basics.add_argument(
+        "--scoreAdapters",
+        action="store_true",
+        help="Score complete BC--ADP--BC regions PBbarcode")
+    basics.add_argument(
+        "-s", "--soFile",
+        type=canonicalizedFilePath,
+        metavar="SO_FILE",
+        help="Path to the Shared Object file to use for alignment")
 
     parameter = parser.add_argument_group("Parameter settings")
     parameter.add_argument(
@@ -125,7 +146,7 @@ def parseOptions():
 
     parser.parse_args(namespace=options)
 
-    for path in (options.inputFilename, options.barcodeFilename):
+    for path in (options.inputFilename, options.barcodeFilename, options.soFile):
         if path is not None:
             checkInputFile(path)
 
