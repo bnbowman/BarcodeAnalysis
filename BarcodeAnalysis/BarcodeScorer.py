@@ -274,14 +274,14 @@ class BarcodeScorer(object):
 
         return (barcodeScores, adapterScores)
 
-    def scoreZmw3(self, zmw):
+    def scoreZmwRc(self, zmw):
         adapters, scoredFirst = self._flankingSeqs(zmw)
         adapters2 = [((a[0], a[1]) if a[0] is None else (self._rc(a[0]), a[1])) for a in adapters]
         adapterScores = [[]]*len(adapters)
         barcodeScores = n.zeros(len(self.barcodeSeqs))
 
-        for i,adapter in enumerate(adapters):
-            fscores = self.fivePrimeScorer2(adapter[0])
+        for i,adapter in enumerate(adapters2):
+            fscores = self.fivePrimeScorerRc(adapter[0])
             tscores = self.threePrimeScorer(adapter[1])
 
             scored = 2.0 if adapter[0] and adapter[1] \
@@ -337,6 +337,28 @@ class BarcodeScorer(object):
                 fwdBc, revBc = selectedBcSeqs[j]
                 print "Adp #{0} - BC {1} - RevAdp FwdBc".format(i+1, bc)
                 self.aligner.score(revAdp, fwdBc)
+                print "Adp #{0} - BC {1} - revAdp RevBc".format(i+1, bc)
+                self.aligner.score(revAdp, revBc)
+            print "END\n"
+
+    def scoreSelectedAdaptersRc(self, zmw, selectedAdp, selectedBc):
+        adapters, scoredFirst = self._flankingSeqs(zmw)
+        adapters2 = [((None, a[1]) if a[0] is None else (self._rc(a[0]), a[1])) for a in adapters]
+        assert len(adapters2) == len(selectedAdp)
+        selectedAdapters = [adapters2[i] for i,v in enumerate(selectedAdp) if v == 1]
+        selectedBcPos = [self.barcodeNames2.index(bc) for bc in selectedBc]
+        selected5pBcSeqs = [self.fivePrimeSeqsRc[i] for i in selectedBcPos]
+        selected3pBcSeqs = [self.threePrimeSeqs[i]  for i in selectedBcPos]
+        for i, adps in enumerate(selectedAdapters):
+            fwdAdp, revAdp = adps
+            print "FORWARD"
+            for j, bc in enumerate(selectedBc):
+                fwdBc = selected5pBcSeqs[j]
+                print "Adp #{0} - BC {1} - FwdAdp FwdBc".format(i+1, bc)
+                self.aligner.score(fwdAdp, fwdBc)
+            print "REVERSE"
+            for j, bc in enumerate(selectedBc):
+                revBc = selected3pBcSeqs[j]
                 print "Adp #{0} - BC {1} - RevAdp RevBc".format(i+1, bc)
                 self.aligner.score(revAdp, revBc)
             print "END\n"

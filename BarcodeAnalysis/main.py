@@ -355,6 +355,14 @@ class BarcodeAnalyzer(object):
         self._loadChemistry()
         self._loadBarcodes()
 
+        scorer = BarcodeScorer(self._inputReader,
+                               FastaReader(options.barcodeFilename),
+                               adapterSidePad = options.adapterSidePad,
+                               insertSidePad = options.insertSidePad,
+                               scoreMode = 'paired', maxHits = 10,
+                               scoreFirst = False, startTimeCutoff = 1,
+                               minScore = 30,
+                               soFile=options.soFile)
         # If tSNE was selected, output the barcode information as a CSV
         if options.tSNE:
             with self.openOutputFile() as handle:
@@ -370,17 +378,12 @@ class BarcodeAnalyzer(object):
                     lengths = [(len(w) if w else 0) for w in self._getWindowReads(zmw)]
                     print '%s,%s,%s' % (zmw.zmwName, ','.join([str(l) for l in lengths]), min(lengths))
         # If PBbarcode was selected, use Bullard's BarcodeScorer to score sequences
-        elif options.pbbarcode:
-            scorer = BarcodeScorer(self._inputReader, FastaReader(options.barcodeFilename),
-                                    adapterSidePad = 0, insertSidePad = 4,
-                                    scoreMode = 'paired', maxHits = 10,
-                                    scoreFirst = False, startTimeCutoff = 1,
-                                    minScore = 30,
-                                    soFile=options.soFile)
+        elif options.scoreBarcodes:
+            print "Zmw,TrueIdx,NumAdp,NumCorrect,CorrectAvg,IncorrectAvg"
             for zmw in self._sequencingZmws:
                 trueIdx = self._whiteListIdx[ zmw.zmwName ]
                 trueIdxPts = trueIdx.split('--')
-                res = scorer.scoreZmw3( zmw )
+                res = scorer.scoreZmw2( zmw )
                 adpScores = res[1]
                 adpBestArg = [np.argmax(a) for a in adpScores]
                 adpBestScores = [adpScores[i][x] for i,x in enumerate(adpBestArg)]
@@ -393,13 +396,42 @@ class BarcodeAnalyzer(object):
                 print "{0},{1},{2},{3},{4},{5}".format(zmw.zmwName, trueIdx,
                                                        len(adpBestArg), sum(adpIdxCorrect),
                                                        avgCorrect, avgIncorrect)
+        elif options.scoreBarcodesRc:
+            print "Zmw,TrueIdx,NumAdp,NumCorrect,CorrectAvg,IncorrectAvg"
+            for zmw in self._sequencingZmws:
+                trueIdx = self._whiteListIdx[ zmw.zmwName ]
+                trueIdxPts = trueIdx.split('--')
+                res = scorer.scoreZmwRc( zmw )
+                adpScores = res[1]
+                adpBestArg = [np.argmax(a) for a in adpScores]
+                adpBestScores = [adpScores[i][x] for i,x in enumerate(adpBestArg)]
+                adpBestIdx = [scorer.barcodeNames[i] for i in adpBestArg]
+                adpIdxCorrect = [1 if idx in trueIdxPts else 0 for idx in adpBestIdx]
+                adpScoreCorrect =   [adpBestScores[i] for i,v in enumerate(adpIdxCorrect) if v == 1]
+                adpScoreIncorrect = [adpBestScores[i] for i,v in enumerate(adpIdxCorrect) if v == 0]
+                avgCorrect   = sum(adpScoreCorrect)/float(len(adpScoreCorrect))     if len(adpScoreCorrect)   else 'N/A'
+                avgIncorrect = sum(adpScoreIncorrect)/float(len(adpScoreIncorrect)) if len(adpScoreIncorrect) else 'N/A'
+                print "{0},{1},{2},{3},{4},{5}".format(zmw.zmwName, trueIdx,
+                                                       len(adpBestArg), sum(adpIdxCorrect),
+                                                       avgCorrect, avgIncorrect)
+        elif options.testBarcodesRc:
+            print "Zmw,TrueIdx,NumAdp,NumCorrect,CorrectAvg,IncorrectAvg"
+            for zmw in self._sequencingZmws:
+                trueIdx = self._whiteListIdx[ zmw.zmwName ]
+                trueIdxPts = trueIdx.split('--')
+                res = scorer.scoreZmwRc( zmw )
+                adpScores = res[1]
+                adpBestArg = [np.argmax(a) for a in adpScores]
+                adpBestIdx = [scorer.barcodeNames[i] for i in adpBestArg]
+                uniqueBestIdx = sorted(set(adpBestIdx))
+                adpIdxIncorrect = [0 if idx in trueIdxPts else 1 for idx in adpBestIdx]
+                print zmw.zmwName, adpIdxIncorrect
+                if sum(adpIdxIncorrect) > 0:
+                    print zmw.zmwName, trueIdx
+                    print adpBestIdx
+                    scorer.scoreSelectedAdaptersRc(zmw, adpIdxIncorrect, uniqueBestIdx)
         # Otherwise score the barcodes normally and return a CSV
         elif options.pbbarcode2:
-            scorer = BarcodeScorer(self._inputReader, FastaReader(options.barcodeFilename),
-                                    adapterSidePad = 0, insertSidePad = 4,
-                                    scoreMode = 'paired', maxHits = 10,
-                                    scoreFirst = False, startTimeCutoff = 1,
-                                    soFile=options.soFile)
             for zmw in self._sequencingZmws:
                 trueIdx = self._whiteListIdx[ zmw.zmwName ]
                 trueIdxPts = trueIdx.split('--')
@@ -421,11 +453,6 @@ class BarcodeAnalyzer(object):
                 scorer.scoreSelectedAdapters(zmw, adpIdxIncorrect, uniqueBestIdx)
                 print
         elif options.pbbarcode3:
-            scorer = BarcodeScorer(self._inputReader, FastaReader(options.barcodeFilename),
-                                    adapterSidePad = 0, insertSidePad = 4,
-                                    scoreMode = 'paired', maxHits = 10,
-                                    scoreFirst = False, startTimeCutoff = 1,
-                                    soFile=options.soFile)
             for zmw in self._sequencingZmws:
                 trueIdx = self._whiteListIdx[ zmw.zmwName ]
                 trueIdxPts = trueIdx.split('--')
@@ -448,11 +475,24 @@ class BarcodeAnalyzer(object):
                 #    continue
         # Otherwise score the barcodes normally and return a CSV
         elif options.scoreAdapters:
-            scorer = BarcodeScorer(self._inputReader, FastaReader(options.barcodeFilename),
-                                    adapterSidePad = 0, insertSidePad = 4,
-                                    scoreMode = 'paired', maxHits = 10,
-                                    scoreFirst = False, startTimeCutoff = 1,
-                                    soFile=options.soFile)
+            print "Zmw,TrueIdx,NumAdp,NumCorrect,CorrectAvg,IncorrectAvg"
+            for zmw in self._sequencingZmws:
+                trueIdx = self._whiteListIdx[ zmw.zmwName ]
+                trueIdxPts = trueIdx.split('--')
+                res = scorer.scoreZmwAdps( zmw )
+                adpScores = res[1]
+                adpBestArg = [np.argmax(a) for a in adpScores]
+                adpBestScores = [adpScores[i][x] for i,x in enumerate(adpBestArg)]
+                adpBestIdx = [scorer.barcodeNames[i] for i in adpBestArg]
+                adpIdxCorrect = [1 if idx in trueIdxPts else 0 for idx in adpBestIdx]
+                adpScoreCorrect =   [adpBestScores[i] for i,v in enumerate(adpIdxCorrect) if v == 1]
+                adpScoreIncorrect = [adpBestScores[i] for i,v in enumerate(adpIdxCorrect) if v == 0]
+                avgCorrect   = sum(adpScoreCorrect)/float(len(adpScoreCorrect))     if len(adpScoreCorrect)   else 'N/A'
+                avgIncorrect = sum(adpScoreIncorrect)/float(len(adpScoreIncorrect)) if len(adpScoreIncorrect) else 'N/A'
+                print "{0},{1},{2},{3},{4},{5}".format(zmw.zmwName, trueIdx,
+                                                       len(adpBestArg), sum(adpIdxCorrect),
+                                                       avgCorrect, avgIncorrect)
+        elif options.testAdapters:
             for zmw in self._sequencingZmws:
                 trueIdx = self._whiteListIdx[ zmw.zmwName ]
                 trueIdxPts = trueIdx.split('--')

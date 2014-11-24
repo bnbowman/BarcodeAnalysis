@@ -63,7 +63,15 @@ def parseOptions():
         action="store_true",
         help="Generate a report for using with t-SNE")
     basics.add_argument(
-        "--pbbarcode",
+        "--scoreBarcodesRc",
+        action="store_true",
+        help="Generate a report using PBbarcode and RC'd 5' sequences")
+    basics.add_argument(
+        "--testBarcodesRc",
+        action="store_true",
+        help="Print out detail alignments of incorrect calls using PBbarcode and RC'd 5' sequences")
+    basics.add_argument(
+        "--scoreBarcodes",
         action="store_true",
         help="Generate a report using PBbarcode")
     basics.add_argument(
@@ -79,10 +87,26 @@ def parseOptions():
         action="store_true",
         help="Score complete BC--ADP--BC regions PBbarcode")
     basics.add_argument(
+        "--testAdapters",
+        action="store_true",
+        help="Score and display complete BC--ADP--BC regions PBbarcode")
+    basics.add_argument(
         "-s", "--soFile",
         type=canonicalizedFilePath,
         metavar="SO_FILE",
         help="Path to the Shared Object file to use for alignment")
+    basics.add_argument(
+        "-a", "--adapterSidePad",
+        type=int,
+        metavar="INT",
+        default=0,
+        help="Number of bases from the adapter region to take")
+    basics.add_argument(
+        "-i", "--insertSidePad",
+        type=int,
+        metavar="INT",
+        default=5,
+        help="Number of bases passed the expected primer region to take")
 
     parameter = parser.add_argument_group("Parameter settings")
     parameter.add_argument(

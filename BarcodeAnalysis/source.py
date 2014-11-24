@@ -24,14 +24,20 @@ def readZmwWhiteList(filename):
         zmws = set([l.strip() for l in open(filename) if len(l.strip()) > 1])
     except:
         raise IOError("Invalid Whitelist file")
-    return zmws
+    if 'Zmw' in zmws:
+        return zmws - set(['Zmw'])
+    else:
+        return zmws
 
 def readCsvWhiteList(filename):
     try:
         zmws = set([l.strip().split(',')[0] for l in open(filename) if len(l.strip()) > 1])
     except:
         raise IOError("Invalid Whitelist file")
-    return zmws
+    if 'Zmw' in zmws:
+        return zmws - set(['Zmw'])
+    else:
+        return zmws
 
 def readWhiteListIdx(filename):
     try:
