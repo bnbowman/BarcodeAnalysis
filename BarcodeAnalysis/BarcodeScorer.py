@@ -151,7 +151,7 @@ class BarcodeScorer(object):
         seqs = [fromRange(start, end) for (start, end) in adapterRegions]
         return seqs
 
-    def _flankingSeqs(self, zmw):
+    def _flankingSeqs(self, zmw, trim=False):
         def fromRange(rStart, rEnd):
             try:
                 qSeqLeft = zmw.read(rStart - (self.barcodeLength + self.insertSidePad),
@@ -167,7 +167,15 @@ class BarcodeScorer(object):
 
             return (qSeqLeft, qSeqRight)
 
+        # If requested, trim to only adapters entirely in the HQ region
         adapterRegions = zmw.adapterRegions
+        if trim:
+            if adapterRegions[0][0] < zmw.hqRegion[0]:
+                adapterRegions = adapterRegions[1:]
+            if adapterRegions[-1][1] > zmw.hqRegion[1]:
+                adapterRegions = adapterRegions[:-1]
+
+        # If we still have more than the maximum allowed hits, trim
         if len(adapterRegions) > self.maxHits:
             adapterRegions = adapterRegions[0:self.maxHits]
 
@@ -249,6 +257,36 @@ class BarcodeScorer(object):
         barcodeScores = n.zeros(len(self.barcodeSeqs))
 
         for i,adapter in enumerate(adapters):
+            fscores = self.fivePrimeScorerRc(adapter[0])
+            rscores = self.threePrimeScorer(adapter[0])
+            ffscores = self.fivePrimeScorerRc(adapter[1])
+            rrscores = self.threePrimeScorer(adapter[1])
+
+            scored = 2.0 if adapter[0] and adapter[1] \
+                else 1.0 if adapter[0] or  adapter[1] \
+                else 0
+
+            # An adapter score is the average barcode score for
+            # each barcode -- that way, you can compare across
+            # adapters even if the different adapters have
+            # different numbers of flanking sequence.
+            if scored == 0:
+                adapterScores[i] = barcodeScores
+            else:
+                adapterScores[i] = n.maximum((fscores + rrscores)/scored,
+                                             (rscores + ffscores)/scored)
+
+        barcodeScores = reduce(lambda x, y: x + y, adapterScores) if adapterScores \
+            else n.zeros(len(self.barcodeSeqs))
+
+        return (barcodeScores, adapterScores)
+
+    def scoreZmw3(self, zmw):
+        adapters, scoredFirst = self._flankingSeqs(zmw)
+        adapterScores = [[]]*len(adapters)
+        barcodeScores = n.zeros(len(self.barcodeSeqs))
+
+        for i,adapter in enumerate(adapters):
             fscores = self.fivePrimeScorer(adapter[0])
             tscores = self.threePrimeScorer(adapter[1])
 
@@ -274,8 +312,8 @@ class BarcodeScorer(object):
 
         return (barcodeScores, adapterScores)
 
-    def scoreZmwRc(self, zmw):
-        adapters, scoredFirst = self._flankingSeqs(zmw)
+    def scoreZmwRc(self, zmw, trim=False):
+        adapters, scoredFirst = self._flankingSeqs(zmw, trim)
         adapters2 = [((a[0], a[1]) if a[0] is None else (self._rc(a[0]), a[1])) for a in adapters]
         adapterScores = [[]]*len(adapters)
         barcodeScores = n.zeros(len(self.barcodeSeqs))
@@ -302,6 +340,15 @@ class BarcodeScorer(object):
             else n.zeros(len(self.barcodeSeqs))
 
         return (barcodeScores, adapterScores)
+
+    def scoreZmwRc2(self, zmw):
+        adapters, scoredFirst = self._flankingSeqs(zmw)
+        adapters2 = [((a[0], a[1]) if a[0] is None else (self._rc(a[0]), a[1])) for a in adapters]
+
+        for i,adapter in enumerate(adapters2):
+            fscores = self.threePrimeScorer(adapter[0])
+            tscores = self.threePrimeScorer(adapter[1])
+            yield (fscores, tscores)
 
     def scoreZmwAdps(self, zmw):
         adapters = self._adapterSeqs(zmw)

@@ -34,7 +34,7 @@ setup(
     zip_safe = False,
     install_requires=[
         'numpy >= 1.6.0',
-        'h5py >= 1.3.0',
-        'ConsensusCore >= 0.8.8'
+        'h5py >= 1.3.0'
+        #'ConsensusCore >= 0.8.8'
         ]
     )

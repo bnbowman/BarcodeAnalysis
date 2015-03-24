@@ -71,9 +71,21 @@ def parseOptions():
         action="store_true",
         help="Print out detail alignments of incorrect calls using PBbarcode and RC'd 5' sequences")
     basics.add_argument(
+        "--testBarcodesRc2",
+        action="store_true",
+        help="Print out a CSV of Barcode Score data")
+    basics.add_argument(
         "--scoreBarcodes",
         action="store_true",
         help="Generate a report using PBbarcode")
+    basics.add_argument(
+        "--scoreBarcodesOld",
+        action="store_true",
+        help="Generate a report using PBbarcode")
+    basics.add_argument(
+        "--summarizeErrorsRc",
+        action="store_true",
+        help="Categorize and summarize any remaining errors")
     basics.add_argument(
         "--pbbarcode2",
         action="store_true",
@@ -91,6 +103,10 @@ def parseOptions():
         action="store_true",
         help="Score and display complete BC--ADP--BC regions PBbarcode")
     basics.add_argument(
+        "--funnyAdapters",
+        action="store_true",
+        help="Identify and output reads with a funny pattern of adapters")
+    basics.add_argument(
         "-s", "--soFile",
         type=canonicalizedFilePath,
         metavar="SO_FILE",
@@ -107,6 +123,12 @@ def parseOptions():
         metavar="INT",
         default=5,
         help="Number of bases passed the expected primer region to take")
+    basics.add_argument(
+        "-m", "--maxHits",
+        type=int,
+        metavar="INT",
+        default=10,
+        help="Maximum number of Adapter Regions to score")
 
     parameter = parser.add_argument_group("Parameter settings")
     parameter.add_argument(
@@ -135,7 +157,7 @@ def parseOptions():
         metavar="CSV",
         help="The filename of the CSV to output barcode scoring data to.")
     parameter.add_argument(
-        "-a", "--appendOutput",
+        "-x", "--appendOutput",
         action='store_true',
         help="The")
 

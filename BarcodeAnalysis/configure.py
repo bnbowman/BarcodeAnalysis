@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import ConfigParser
-
+"""
 import ConsensusCore as cc
 
 from BarcodeAnalysis.utils import fst, snd
@@ -33,3 +33,4 @@ def loadQuiverConfigs(iniFilename):
         if config:
             quiverConfigs[sectionName] = config
     return quiverConfigs
+"""

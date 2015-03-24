@@ -7,7 +7,7 @@ import h5py
 import numpy as np
 
 from pbcore.io import FastaRecord
-import ConsensusCore as cc
+#import ConsensusCore as cc
 
 fst = lambda t: t[0]
 snd = lambda t: t[1]
@@ -30,8 +30,8 @@ def reverse_complement( sequence ):
 def rev_com_str( seq ):
     return seq.translate( REV_COM )[::-1]
 
-def asFloatFeature( array ):
-    return cc.FloatFeature(np.array(array, dtype=np.float32))
+#def asFloatFeature( array ):
+#    return cc.FloatFeature(np.array(array, dtype=np.float32))
 
 def arrayFromDataset(ds, offsetBegin, offsetEnd):
     """

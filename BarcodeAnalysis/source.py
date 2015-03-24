@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 from pbcore.io import BasH5Reader, BasH5Collection
+from pbcore.io import FastaReader
 
 __author__ = 'Brett Bowman'
 
@@ -14,10 +15,20 @@ def loadFromFile(filename):
 def getWhiteListType(filename):
     if filename.endswith('.csv'):
         return "CSV"
-    elif filename.endswith('.txt', '.zmw'):
+    elif filename.endswith('.txt') or filename.endswith('.zmw') or filename.endswith('.zmws'):
         return "ZMW"
+    elif filename.endswith('.fasta') or filename.endswith('.fa'):
+        return "FASTA"
     else:
         raise TypeError("Invalid Whitelist filetype")
+
+def readFastaWhiteList(filename):
+    try:
+        reads = set([r.id for r in FastaReader(filename)])
+        zmws = set(['/'.join(r.split('/')[:2]) for r in reads])
+    except:
+        raise IOError("Invalid Whitelist file")
+    return zmws
 
 def readZmwWhiteList(filename):
     try:

@@ -1,5 +1,5 @@
 __author__ = "Brett Bowman"
-
+"""
 import ConsensusCore as cc
 
 from BarcodeAnalysis.utils import (arrayFromDataset,
@@ -90,3 +90,4 @@ class ConsensusCoreRead(object):
             arrayFeature = arrayFromDataset(bax._basecallsGroup[feature], absStart, absEnd)
             floatFeature = asFloatFeature( arrayFeature )
             sequenceFeatures.append( floatFeature )
+"""
