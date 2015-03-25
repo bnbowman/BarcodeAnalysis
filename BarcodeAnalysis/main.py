@@ -178,6 +178,9 @@ class BarcodeAnalyzer(object):
     def adapterPad(self):
         return self._adapterPad
     @property
+    def insertPad(self):
+        return self._insertPad
+    @property
     def chemistry(self):
         return self._chemistry
     @property
@@ -424,6 +427,9 @@ class BarcodeAnalyzer(object):
         self._loadChemistry()
         self._loadBarcodes()
 
+        self._insertPad = options.insertSidePad
+        self._adapterPad = options.adapterSidePad
+
         scorer = BarcodeScorer(self._inputReader,
                                FastaReader(options.barcodeFilename),
                                adapterSidePad = options.adapterSidePad,
@@ -523,16 +529,22 @@ class BarcodeAnalyzer(object):
                 for adp, scores in zip(zmw.adapterRegions, scorer.scoreZmwRc2( zmw )):
                     leftEnd, rightStart = adp
                     leftScore, rightScore = scores
-                    leftStart = leftEnd - self.windowSize
+                    leftStart = leftEnd - self.windowSize - self.insertPad
+                    leftSeq = reverse_complement(zmw.read(leftStart, leftEnd).basecalls())
                     leftMax = max(leftScore)
                     leftIdx = list(leftScore).index(leftMax)
                     leftBc = self._barcodeNames[leftIdx]
-                    print zmw.zmwName, leftStart, leftEnd, leftBc, leftMax
-                    rightEnd  = rightStart + self.windowSize
+                    leftBcSeq = self._barcodeSequences[(leftBc, 'FORWARD')] if leftBc.startswith('F') else self._barcodeSequences[(leftBc, 'REVERSE')]
+                    print "{0},{1},{2},{3},{4}".format(zmw.zmwName, leftStart, leftEnd, leftBc, leftMax)
+                    scorer.aligner.score(leftSeq, leftBcSeq)
+                    rightEnd  = rightStart + self.windowSize + self.insertPad
+                    rightSeq = zmw.read(rightStart, rightEnd).basecalls()
                     rightMax = max(rightScore)
                     rightIdx = list(rightScore).index(rightMax)
                     rightBc = self._barcodeNames[rightIdx]
-                    print zmw.zmwName, rightStart, rightEnd, rightBc, rightMax
+                    rightBcSeq = self._barcodeSequences[(rightBc, 'FORWARD')] if rightBc.startswith('F') else self._barcodeSequences[(rightBc, 'REVERSE')]
+                    print "{0},{1},{2},{3},{4}".format(zmw.zmwName, rightStart, rightEnd, rightBc, rightMax)
+                    scorer.aligner.score(rightSeq, rightBcSeq)
         elif options.funnyAdapters:
             for zmw in self._sequencingZmws:
                 adpEnds = [str(r[1]) for r in zmw.adapterRegions[:options.maxHits]]

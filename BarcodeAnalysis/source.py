@@ -24,8 +24,8 @@ def getWhiteListType(filename):
 
 def readFastaWhiteList(filename):
     try:
-        reads = set([r.id for r in FastaReader(filename)])
-        zmws = set(['/'.join(r.split('/')[:2]) for r in reads])
+        reads = [r.id for r in FastaReader(filename)]
+        zmws = ['/'.join(r.split('/')[:2]) for r in reads]
     except:
         raise IOError("Invalid Whitelist file")
     return zmws
