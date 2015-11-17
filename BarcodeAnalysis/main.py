@@ -78,6 +78,7 @@ class BarcodeAnalyzer(object):
         self._chemistry = None
         self._windowSize = 25
         self._adapterPad = 0
+        self._insertPad = 9
         self._startTimeCutoff = 10.0
 
     def _setupLogging(self):
@@ -171,6 +172,9 @@ class BarcodeAnalyzer(object):
         self._barcodePairs = [(names[i], names[i+1]) for i in range(0,len(names)-1,2)]
         self._barcodePairNames = ["{0}--{1}".format(p[0], p[1]) for p in self._barcodePairs]
 
+    @property
+    def barcodeLength(self):
+        return self._barcodeLength
     @property
     def windowSize(self):
         return self._windowSize
@@ -523,28 +527,59 @@ class BarcodeAnalyzer(object):
                     print zmw.zmwName, trueIdx
                     print adpBestIdx
                     scorer.scoreSelectedAdaptersRc(zmw, adpIdxIncorrect, uniqueBestIdx)
+
         elif options.testBarcodesRc2:
             print "Zmw,TrueIdx,NumAdp,NumCorrect,CorrectAvg,IncorrectAvg"
             for zmw in self._sequencingZmws:
+                hqStart, hqEnd = zmw.hqRegion
                 for adp, scores in zip(zmw.adapterRegions, scorer.scoreZmwRc2( zmw )):
                     leftEnd, rightStart = adp
                     leftScore, rightScore = scores
-                    leftStart = leftEnd - self.windowSize - self.insertPad
-                    leftSeq = reverse_complement(zmw.read(leftStart, leftEnd).basecalls())
-                    leftMax = max(leftScore)
-                    leftIdx = list(leftScore).index(leftMax)
-                    leftBc = self._barcodeNames[leftIdx]
-                    leftBcSeq = self._barcodeSequences[(leftBc, 'FORWARD')] if leftBc.startswith('F') else self._barcodeSequences[(leftBc, 'REVERSE')]
-                    print "{0},{1},{2},{3},{4}".format(zmw.zmwName, leftStart, leftEnd, leftBc, leftMax)
-                    scorer.aligner.score(leftSeq, leftBcSeq)
-                    rightEnd  = rightStart + self.windowSize + self.insertPad
-                    rightSeq = zmw.read(rightStart, rightEnd).basecalls()
-                    rightMax = max(rightScore)
-                    rightIdx = list(rightScore).index(rightMax)
-                    rightBc = self._barcodeNames[rightIdx]
-                    rightBcSeq = self._barcodeSequences[(rightBc, 'FORWARD')] if rightBc.startswith('F') else self._barcodeSequences[(rightBc, 'REVERSE')]
-                    print "{0},{1},{2},{3},{4}".format(zmw.zmwName, rightStart, rightEnd, rightBc, rightMax)
-                    scorer.aligner.score(rightSeq, rightBcSeq)
+                    if leftEnd > hqStart:
+                        leftStart = max(0, leftEnd - self.barcodeLength - self.insertPad)
+                        leftSeq = reverse_complement(zmw.read(leftStart, leftEnd).basecalls())
+                        leftMax = max(leftScore)
+                        leftIdx = list(leftScore).index(leftMax)
+                        leftBc = self._barcodeNames[leftIdx]
+                        leftBcSeq = self._barcodeSequences[(leftBc, 'FORWARD')] if leftBc.startswith('F') else self._barcodeSequences[(leftBc, 'REVERSE')]
+                        print "{0},{1},{2},Left,{3},{4}".format(zmw.read().readName, leftEnd, rightStart, leftBc, leftMax)
+                    if rightStart < hqEnd:
+                        rightEnd  = min(hqEnd, rightStart + self.barcodeLength + self.insertPad)
+                        rightSeq = zmw.read(rightStart, rightEnd).basecalls()
+                        rightMax = max(rightScore)
+                        rightIdx = list(rightScore).index(rightMax)
+                        rightBc = self._barcodeNames[rightIdx]
+                        rightBcSeq = self._barcodeSequences[(rightBc, 'FORWARD')] if rightBc.startswith('F') else self._barcodeSequences[(rightBc, 'REVERSE')]
+                        rightTestScore = list(rightScore)[leftIdx]
+                        print "{0},{1},{2},Right,{3},{4}".format(zmw.read().readName, leftEnd, rightStart, rightBc, rightMax)
+
+        elif options.testBarcodesRc3:
+            print "Zmw,TrueIdx,NumAdp,NumCorrect,CorrectAvg,IncorrectAvg"
+            for zmw in self._sequencingZmws:
+                hqStart, hqEnd = zmw.hqRegion
+                for adp, scores in zip(zmw.adapterRegions, scorer.scoreZmwRc2( zmw )):
+                    leftEnd, rightStart = adp
+                    leftScore, rightScore = scores
+                    if leftEnd > hqStart:
+                        leftStart = max(0, leftEnd - self.barcodeLength - self.insertPad)
+                        leftSeq = reverse_complement(zmw.read(leftStart, leftEnd).basecalls())
+                        leftMax = max(leftScore)
+                        leftIdx = list(leftScore).index(leftMax)
+                        leftBc = self._barcodeNames[leftIdx]
+                        leftBcSeq = self._barcodeSequences[(leftBc, 'FORWARD')] if leftBc.startswith('F') else self._barcodeSequences[(leftBc, 'REVERSE')]
+                        print "{0},{1},{2},Left,{3},{4}".format(zmw.read().readName, leftEnd, rightStart, leftBc, leftMax)
+                        scorer.aligner.score(leftSeq, leftBcSeq)
+                    if rightStart < hqEnd:
+                        rightEnd  = min(hqEnd, rightStart + self.barcodeLength + self.insertPad)
+                        rightSeq = zmw.read(rightStart, rightEnd).basecalls()
+                        rightMax = max(rightScore)
+                        rightIdx = list(rightScore).index(rightMax)
+                        rightBc = self._barcodeNames[rightIdx]
+                        rightBcSeq = self._barcodeSequences[(rightBc, 'FORWARD')] if rightBc.startswith('F') else self._barcodeSequences[(rightBc, 'REVERSE')]
+                        rightTestScore = list(rightScore)[leftIdx]
+                        print "{0},{1},{2},Right,{3},{4}".format(zmw.read().readName, leftEnd, rightStart, rightBc, rightMax)
+                        scorer.aligner.score(rightSeq, leftBcSeq)
+
         elif options.funnyAdapters:
             for zmw in self._sequencingZmws:
                 adpEnds = [str(r[1]) for r in zmw.adapterRegions[:options.maxHits]]

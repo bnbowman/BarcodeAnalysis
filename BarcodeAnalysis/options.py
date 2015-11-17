@@ -75,6 +75,10 @@ def parseOptions():
         action="store_true",
         help="Print out a CSV of Barcode Score data")
     basics.add_argument(
+        "--testBarcodesRc3",
+        action="store_true",
+        help="Print out a CSV of Barcode Score data")
+    basics.add_argument(
         "--scoreBarcodes",
         action="store_true",
         help="Generate a report using PBbarcode")
@@ -121,7 +125,7 @@ def parseOptions():
         "-i", "--insertSidePad",
         type=int,
         metavar="INT",
-        default=5,
+        default=9,
         help="Number of bases passed the expected primer region to take")
     basics.add_argument(
         "-m", "--maxHits",
